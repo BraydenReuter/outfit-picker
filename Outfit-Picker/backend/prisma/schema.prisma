@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ClothingCategory {
+  TOP
+  BOTTOM
+}
+
+enum ClothingType {
+  T_SHIRT
+  LONG_SLEEVE
+  HOODIE
+  SWEATSHIRT
+  SWEATER
+  POLO
+  TANK_TOP
+  OTHER_TOP
+  JEANS
+  CHINOS
+  DRESS_PANTS
+  SHORTS
+  SWEATPANTS
+  JOGGERS
+  CARGO_PANTS
+  OTHER_BOTTOM
+}
+
+enum ColorName {
+  BLACK
+  WHITE
+  GRAY
+  NAVY
+  BLUE
+  RED
+  GREEN
+  YELLOW
+  ORANGE
+  PURPLE
+  PINK
+  BROWN
+  BEIGE
+  CREAM
+  OTHER
+}
+
+enum OutfitItemRole {
+  TOP
+  BOTTOM
+}
+
+model ClothingItem {
+  id          String            @id @default(cuid())
+  name        String
+  category    ClothingCategory
+  type        ClothingType
+  color       ColorName
+  brand       String?
+  size        String?
+  imageUrl    String?
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  outfitItems OutfitItem[]
+
+  @@index([category])
+  @@index([type])
+  @@index([color])
+  @@index([brand])
+}
+
+model Outfit {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       OutfitItem[]
+}
+
+model OutfitItem {
+  id            String        @id @default(cuid())
+  outfitId      String
+  clothingItemId String
+  role          OutfitItemRole
+  outfit        Outfit         @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  clothingItem  ClothingItem   @relation(fields: [clothingItemId], references: [id], onDelete: Cascade)
+
+  @@unique([outfitId, clothingItemId, role])
+}
