@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { localImagePattern } from '../services/imageStorage';
 
 export type ClothingCategory = 'TOP' | 'BOTTOM';
 export type ClothingType =
@@ -115,7 +116,7 @@ const clothingFields = {
     .refine(
       (value) =>
         value === '' ||
-        /^\/uploads\/[A-Za-z0-9-]+\.png$/.test(value) ||
+        localImagePattern.test(value) ||
         (z.string().url().safeParse(value).success &&
           /^https?:\/\//i.test(value)),
       'Image URL must be a valid URL or local processed image path',

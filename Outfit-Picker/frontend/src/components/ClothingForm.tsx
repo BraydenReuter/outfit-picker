@@ -6,7 +6,8 @@ import {
   type FormEvent,
   type SetStateAction,
 } from 'react';
-import { discardProcessedImage, removeBackground } from '../api/imageApi';
+import { discardProcessedImage, uploadProcessedImage } from '../api/imageApi';
+import { removeBackgroundInBrowser } from '../utils/backgroundRemoval';
 import { resolveAssetUrl } from '../api/apiClient';
 import { transformImage, isSupportedImageType } from '../utils/imageTransform';
 import {
@@ -43,6 +44,7 @@ export function ClothingForm({
     'idle',
   );
   const [imageError, setImageError] = useState<string | null>(null);
+  const [progress, setProgress] = useState('');
   const temporaryImages = useRef(new Set<string>());
   const locked = busy || stage !== 'idle';
   const update = <K extends keyof ClothingFormValues>(
@@ -102,8 +104,11 @@ export function ClothingForm({
     setStage('processing');
     onBusyChange(true);
     setImageError(null);
+    setProgress('Loading the background removal tool…');
     try {
-      const result = await removeBackground(file);
+      const cutout = await removeBackgroundInBrowser(file, setProgress);
+      setProgress('Saving the processed photo…');
+      const result = await uploadProcessedImage(cutout);
       temporaryImages.current.add(result.imageUrl);
       update('imageUrl', result.imageUrl);
     } catch (error) {
@@ -114,6 +119,7 @@ export function ClothingForm({
       );
     } finally {
       setStage('idle');
+      setProgress('');
       onBusyChange(false);
     }
   };
@@ -219,7 +225,7 @@ export function ClothingForm({
                 <span className="spinner" />
                 {stage === 'preparing'
                   ? 'Preparing your photo…'
-                  : 'Removing the background. This can take a couple of minutes on a laptop.'}
+                  : progress}
               </p>
             )}
             {imageError && (

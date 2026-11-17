@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -93,4 +93,18 @@ model OutfitItem {
   clothingItem  ClothingItem   @relation(fields: [clothingItemId], references: [id], onDelete: Cascade)
 
   @@unique([outfitId, clothingItemId, role])
+}
+
+// Processed clothing photos live in the database so the app needs no separate
+// file storage. Rows are served at /uploads/<id>.png.
+model StoredImage {
+  id        String   @id @default(uuid())
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
+// Single-row table that records when the public demo wardrobe was last restored.
+model DemoState {
+  id          Int      @id @default(1)
+  lastResetAt DateTime
 }

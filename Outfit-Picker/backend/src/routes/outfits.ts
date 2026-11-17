@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { createOutfitSchema, updateOutfitSchema } from '../validation/outfit';
+import { config } from '../config/env';
 
 const router = Router();
 const outfitInclude = {
@@ -51,6 +52,10 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const data = createOutfitSchema.parse(req.body);
+    if ((await prisma.outfit.count()) >= config.maxOutfits)
+      return res.status(403).json({
+        message: `You have reached the limit of ${config.maxOutfits} saved outfits. Delete one to save another.`,
+      });
     const pair = await findPair(
       data.topClothingItemId,
       data.bottomClothingItemId,

@@ -5,14 +5,13 @@
   "main": "dist/src/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/src/server.js",
-    "test": "cross-env DATABASE_URL=file:./test.db node scripts/setupDatabase.cjs && cross-env DATABASE_URL=file:./test.db prisma db push --skip-generate && jest --runInBand",
-    "db:setup": "node scripts/setupDatabase.cjs && prisma generate && prisma db push --skip-generate",
-    "cleanup:uploads": "npm run build && node dist/scripts/cleanupUploads.js"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "build": "prisma generate && tsc",
+    "start": "prisma migrate deploy && node dist/src/server.js",
+    "test": "node scripts/prepareTestDatabase.cjs && jest --runInBand",
+    "db:setup": "prisma migrate deploy && prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "seed:demo": "tsx prisma/seed.ts",
+    "cleanup:uploads": "tsx scripts/cleanupUploads.ts"
   },
   "keywords": [
     "outfit",
@@ -28,6 +27,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.4",
     "multer": "^2.3.0",
     "prisma": "^6.19.0",
     "zod": "^4.5.4"
@@ -45,5 +45,8 @@
     "ts-jest": "^29.4.12",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

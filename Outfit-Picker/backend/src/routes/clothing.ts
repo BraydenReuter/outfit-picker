@@ -11,6 +11,7 @@ import {
   clothingCategoryEnum,
 } from '../validation/clothing';
 import { deleteProcessedImage, imageExists } from '../services/imageStorage';
+import { config } from '../config/env';
 
 const router = Router();
 
@@ -23,15 +24,15 @@ router.get('/', async (req, res) => {
         ...(query.category ? { category: query.category } : {}),
         ...(query.type ? { type: query.type } : {}),
         ...(query.color ? { color: query.color } : {}),
-        ...(query.brand ? { brand: { contains: query.brand } } : {}),
-        ...(query.size ? { size: { equals: query.size } } : {}),
+        ...(query.brand ? { brand: { contains: query.brand, mode: 'insensitive' } } : {}),
+        ...(query.size ? { size: { equals: query.size, mode: 'insensitive' } } : {}),
         ...(query.search
           ? {
               OR: [
-                { name: { contains: query.search } },
-                { brand: { contains: query.search } },
-                { description: { contains: query.search } },
-                { size: { contains: query.search } },
+                { name: { contains: query.search, mode: 'insensitive' } },
+                { brand: { contains: query.search, mode: 'insensitive' } },
+                { description: { contains: query.search, mode: 'insensitive' } },
+                { size: { contains: query.search, mode: 'insensitive' } },
                 {
                   type: {
                     in: clothingTypeEnum.filter((value) =>
@@ -94,6 +95,10 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const data = createClothingSchema.parse(req.body);
+    if ((await prisma.clothingItem.count()) >= config.maxClothingItems)
+      return res.status(403).json({
+        message: `The wardrobe is full (${config.maxClothingItems} pieces). Delete a piece to add another.`,
+      });
     if (!(await imageExists(data.imageUrl)))
       return res
         .status(400)

@@ -1,13 +1,10 @@
 import request from 'supertest';
 import app from '../src/app';
-import { stat } from 'node:fs/promises';
 import {
+  cleanupUnusedImages,
   deleteProcessedImage,
   saveProcessedImage,
-  uploadsDirectory,
 } from '../src/services/imageStorage';
-
-import path from 'node:path';
 import { prisma } from '../src/lib/prisma';
 import { config } from '../src/config/env';
 
@@ -15,137 +12,88 @@ const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==',
   'base64',
 );
+const missingUrl = '/uploads/00000000-0000-4000-8000-000000000000.png';
 
 beforeEach(async () => {
-  await prisma.outfitItem.deleteMany();
   await prisma.outfit.deleteMany();
   await prisma.clothingItem.deleteMany();
+  await prisma.storedImage.deleteMany();
 });
 afterAll(() => prisma.$disconnect());
 
-const createdImageUrls: string[] = [];
+const upload = (bytes: Buffer, contentType = 'image/png') =>
+  request(app)
+    .post('/api/images')
+    .attach('file', bytes, { filename: 'shirt.png', contentType });
 
-afterEach(async () => {
-  jest.restoreAllMocks();
-  await prisma.clothingItem.deleteMany();
-  await Promise.all(createdImageUrls.splice(0).map(deleteProcessedImage));
-});
-
-describe('image processing proxy', () => {
+describe('processed photo uploads', () => {
   it('rejects a request without an image', async () => {
-    const response = await request(app).post('/api/images/remove-background');
-
+    const response = await request(app).post('/api/images');
     expect(response.status).toBe(400);
-    expect(response.body.message).toBe('An image file is required.');
+    expect(response.body.message).toBe('A PNG image file is required.');
   });
 
-  it('rejects unsupported file types', async () => {
-    const response = await request(app)
-      .post('/api/images/remove-background')
-      .attach('file', Buffer.from('not an image'), {
-        filename: 'notes.txt',
-        contentType: 'text/plain',
-      });
-
+  it('rejects files that are not labelled PNG', async () => {
+    const response = await upload(Buffer.from('not an image'), 'text/plain');
     expect(response.status).toBe(400);
-    expect(response.body.message).toBe('An image file is required.');
   });
 
-  it('returns a clear error when the image service is unavailable', async () => {
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockRejectedValue(new Error('connection refused'));
+  it.each([Buffer.from('not a PNG at all'), png.subarray(0, 20)])(
+    'does not store bytes that are not really a PNG',
+    async (bytes) => {
+      const response = await upload(bytes);
+      expect(response.status).toBe(400);
+      expect(await prisma.storedImage.count()).toBe(0);
+    },
+  );
 
-    const response = await request(app)
-      .post('/api/images/remove-background')
-      .attach('file', Buffer.from('image bytes'), {
-        filename: 'shirt.png',
-        contentType: 'image/png',
-      });
-
-    expect(response.status).toBe(502);
-    expect(response.body.message).toBe(
-      'The image processing service is unavailable.',
-    );
-  });
-
-  it('proxies a successful processed PNG response', async () => {
-    const processedPng = png;
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(processedPng, {
-          status: 200,
-          headers: { 'content-type': 'image/png' },
-        }),
-      );
-
-    const response = await request(app)
-      .post('/api/images/remove-background')
-      .attach('file', Buffer.from([1, 2, 3]), {
-        filename: 'shirt.png',
-        contentType: 'image/png',
-      });
-
-    expect(response.status).toBe(201);
-    expect(response.body.imageUrl).toMatch(/^\/uploads\/[A-Za-z0-9-]+\.png$/);
-    createdImageUrls.push(response.body.imageUrl);
-    await expect(
-      stat(
-        path.join(uploadsDirectory, response.body.imageUrl.split('/').pop()),
-      ),
-    ).resolves.toBeDefined();
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  it('rejects images with oversized dimensions', async () => {
+    const huge = Buffer.from(png);
+    huge.writeUInt32BE(5000, 16);
+    expect((await upload(huge)).status).toBe(400);
   });
 
   it('rejects oversized uploads', async () => {
-    const response = await request(app)
-      .post('/api/images/remove-background')
-      .attach('file', Buffer.alloc(10 * 1024 * 1024 + 1), {
-        filename: 'large.png',
-        contentType: 'image/png',
-      });
-
+    const response = await upload(Buffer.alloc(4 * 1024 * 1024 + 1));
     expect(response.status).toBe(413);
   });
 
-  it('maps an image-service failure to a gateway error', async () => {
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(JSON.stringify({ detail: 'Inference failed' }), {
-          status: 503,
-          headers: { 'content-type': 'application/json' },
-        }),
-      );
-
-    const response = await request(app)
-      .post('/api/images/remove-background')
-      .attach('file', Buffer.from([1, 2, 3]), {
-        filename: 'shirt.png',
-        contentType: 'image/png',
-      });
-
-    expect(response.status).toBe(502);
-    expect(response.body.message).toBe(
-      'The image processing service rejected the image.',
-    );
+  it('stores a PNG and serves it back', async () => {
+    const response = await upload(png);
+    expect(response.status).toBe(201);
+    expect(response.body.imageUrl).toMatch(/^\/uploads\/[0-9a-f-]{36}\.png$/);
+    const served = await request(app).get(response.body.imageUrl);
+    expect(served.status).toBe(200);
+    expect(served.headers['content-type']).toMatch(/image\/png/);
+    expect(Buffer.compare(served.body, png)).toBe(0);
   });
 
-  it('deletes local images safely and ignores external URLs', async () => {
-    await expect(
-      deleteProcessedImage('/uploads/missing.png'),
-    ).resolves.toBeUndefined();
+  it('refuses new photos when storage is full', async () => {
+    const previous = config.maxStoredImages;
+    config.maxStoredImages = 1;
+    try {
+      await saveProcessedImage(png);
+      expect((await upload(png)).status).toBe(403);
+    } finally {
+      config.maxStoredImages = previous;
+    }
+  });
+
+  it('returns 404 for missing or malformed photo paths', async () => {
+    expect((await request(app).get(missingUrl)).status).toBe(404);
+    expect((await request(app).get('/uploads/..%2Fsecret.png')).status).toBe(
+      404,
+    );
+    await expect(deleteProcessedImage(missingUrl)).resolves.toBeUndefined();
     await expect(
       deleteProcessedImage('https://example.com/image.png'),
     ).resolves.toBeUndefined();
   });
 });
 
-describe('photo persistence regressions', () => {
-  it('serves a processed PNG and protects it while a clothing record uses it', async () => {
+describe('photo persistence', () => {
+  it('protects a photo while a clothing record uses it', async () => {
     const imageUrl = await saveProcessedImage(png);
-    createdImageUrls.push(imageUrl);
     const payload = {
       name: 'Photo tee',
       category: 'TOP',
@@ -165,9 +113,8 @@ describe('photo persistence regressions', () => {
     expect((await request(app).get(imageUrl)).status).toBe(404);
   });
 
-  it('cleans up a discarded processed preview', async () => {
+  it('cleans up a discarded preview', async () => {
     const imageUrl = await saveProcessedImage(png);
-    createdImageUrls.push(imageUrl);
     expect(
       (await request(app).delete(`/api/images/${imageUrl.split('/').pop()}`))
         .status,
@@ -175,19 +122,16 @@ describe('photo persistence regressions', () => {
     expect((await request(app).get(imageUrl)).status).toBe(404);
   });
 
-  it('cleans up the old photo after a successful replacement', async () => {
+  it('cleans up the old photo after a replacement', async () => {
     const oldImage = await saveProcessedImage(png);
     const newImage = await saveProcessedImage(png);
-    createdImageUrls.push(oldImage, newImage);
-    const created = await request(app)
-      .post('/api/clothing')
-      .send({
-        name: 'Tee',
-        category: 'TOP',
-        type: 'T_SHIRT',
-        color: 'WHITE',
-        imageUrl: oldImage,
-      });
+    const created = await request(app).post('/api/clothing').send({
+      name: 'Tee',
+      category: 'TOP',
+      type: 'T_SHIRT',
+      color: 'WHITE',
+      imageUrl: oldImage,
+    });
     const response = await request(app)
       .patch(`/api/clothing/${created.body.id}`)
       .send({ imageUrl: newImage });
@@ -196,62 +140,26 @@ describe('photo persistence regressions', () => {
     expect((await request(app).get(newImage)).status).toBe(200);
   });
 
-  it.each([Buffer.from('not a PNG'), png.subarray(0, 4)])(
-    'does not save a malformed model response',
-    async (bytes) => {
-      jest
-        .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(
-          new Response(bytes, { headers: { 'content-type': 'image/png' } }),
-        );
-      const result = await request(app)
-        .post('/api/images/remove-background')
-        .attach('file', png, {
-          filename: 'shirt.png',
-          contentType: 'image/png',
-        });
-      expect(result.status).toBe(502);
-      expect(result.body.imageUrl).toBeUndefined();
-    },
-  );
-
-  it('preserves validation errors from the image service', async () => {
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 400 }));
-    expect(
-      (
-        await request(app)
-          .post('/api/images/remove-background')
-          .attach('file', png, {
-            filename: 'shirt.png',
-            contentType: 'image/png',
-          })
-      ).status,
-    ).toBe(400);
-  });
-
-  it('times out an unresponsive image service', async () => {
-    const previous = config.imageProcessingTimeoutMs;
-    config.imageProcessingTimeoutMs = 10;
-    jest.spyOn(globalThis, 'fetch').mockImplementation(
-      (_url, options) =>
-        new Promise((_resolve, reject) => {
-          options?.signal?.addEventListener('abort', () =>
-            reject(new DOMException('Timed out', 'AbortError')),
-          );
-        }),
-    );
-    try {
-      const result = await request(app)
-        .post('/api/images/remove-background')
-        .attach('file', png, {
-          filename: 'shirt.png',
-          contentType: 'image/png',
-        });
-      expect(result.status).toBe(504);
-    } finally {
-      config.imageProcessingTimeoutMs = previous;
-    }
+  it('removes only old, unused photos during cleanup', async () => {
+    const used = await saveProcessedImage(png);
+    const fresh = await saveProcessedImage(png);
+    const stale = await saveProcessedImage(png);
+    await request(app).post('/api/clothing').send({
+      name: 'Tee',
+      category: 'TOP',
+      type: 'T_SHIRT',
+      color: 'WHITE',
+      imageUrl: used,
+    });
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    for (const url of [used, stale])
+      await prisma.storedImage.update({
+        where: { id: url.slice(9, -4) },
+        data: { createdAt: twoDaysAgo },
+      });
+    expect(await cleanupUnusedImages()).toBe(1);
+    expect((await request(app).get(used)).status).toBe(200);
+    expect((await request(app).get(fresh)).status).toBe(200);
+    expect((await request(app).get(stale)).status).toBe(404);
   });
 });

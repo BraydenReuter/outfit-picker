@@ -1084,6 +1084,14 @@ button:disabled {
   color: #746b62;
   font-size: 0.8rem;
 }
+.demo-banner {
+  margin: 0;
+  padding: 0.65rem 1rem;
+  background: #f1ebe2;
+  border: 1px solid #d8d0c6;
+  border-radius: 10px;
+  color: #4a4038;
+}
 .status-success {
   display: flex;
   align-items: center;

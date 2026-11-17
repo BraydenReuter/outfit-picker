@@ -1,5 +1,7 @@
+// In production the API serves this app, so a same-origin path is enough.
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? 'http://localhost:4000/api' : '/api');
 
 export function resolveAssetUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;

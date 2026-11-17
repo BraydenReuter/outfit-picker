@@ -1,6 +1,5 @@
-import path from 'node:path';
+import dotenv from 'dotenv';
 
-process.env.DATABASE_URL = 'file:./test.db';
+dotenv.config({ quiet: true });
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 process.env.CLIENT_URL = 'http://localhost:5173';
-process.env.IMAGE_SERVICE_URL = 'http://127.0.0.1:8001';
-process.env.UPLOADS_DIRECTORY = path.resolve(__dirname, '../test-uploads');

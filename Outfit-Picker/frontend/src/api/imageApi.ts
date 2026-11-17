@@ -4,10 +4,13 @@ export interface ProcessedImageResponse {
   imageUrl: string;
 }
 
-export function removeBackground(file: File): Promise<ProcessedImageResponse> {
+/** Stores a photo whose background was already removed in the browser. */
+export function uploadProcessedImage(
+  image: Blob,
+): Promise<ProcessedImageResponse> {
   const formData = new FormData();
-  formData.append('file', file);
-  return request<ProcessedImageResponse>('/images/remove-background', {
+  formData.append('file', image, 'clothing.png');
+  return request<ProcessedImageResponse>('/images', {
     method: 'POST',
     body: formData,
   });

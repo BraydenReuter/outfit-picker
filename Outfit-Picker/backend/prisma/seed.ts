@@ -1,11 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
+import { resetDemoWardrobe } from '../src/services/demo';
 
-const prisma = new PrismaClient();
-
-// A new closet starts empty. Setup should never erase clothes that are already saved.
-prisma.clothingItem
-  .count()
-  .then((count) => console.log(`Closet ready. ${count} saved pieces kept.`))
+// Replaces everything in the configured database with the sample wardrobe.
+resetDemoWardrobe()
+  .then(() => console.log('Sample wardrobe loaded.'))
   .catch((error) => {
     console.error(error);
     process.exitCode = 1;
