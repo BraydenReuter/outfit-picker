@@ -1,0 +1,33 @@
+# Render Blueprint: one free web service that serves both the API and the
+# built React app. The database lives on Neon (free Postgres); paste its
+# connection string as DATABASE_URL when Render asks.
+services:
+  - type: web
+    name: outfit-picker
+    runtime: node
+    plan: free
+    rootDir: Outfit-Picker
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: STATIC_DIRECTORY
+        value: ../frontend/dist
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DEMO_RESET_HOURS
+        value: "24"
+      - key: MAX_CLOTHING_ITEMS
+        value: "60"
+      - key: MAX_OUTFITS
+        value: "40"
+      - key: MAX_STORED_IMAGES
+        value: "150"
+      - key: WRITE_RATE_LIMIT
+        value: "60"

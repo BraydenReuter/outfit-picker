@@ -7,6 +7,7 @@ import {
   updateClothingItem,
 } from './api/clothingApi';
 import { createOutfit, deleteOutfit, fetchOutfits } from './api/outfitApi';
+import { request } from './api/apiClient';
 import {
   colorOptions,
   formatType,
@@ -66,6 +67,14 @@ function App() {
   const [formError, setFormError] = useState<string | null>(null);
   const [outfitError, setOutfitError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const [demoResetHours, setDemoResetHours] = useState<number | null>(null);
+
+  useEffect(() => {
+    // The public demo reports how often its shared wardrobe is restored.
+    request<{ demo: { resetHours: number } | null }>('/health')
+      .then((health) => setDemoResetHours(health.demo?.resetHours ?? null))
+      .catch(() => {});
+  }, []);
   const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -340,6 +349,14 @@ function App() {
               ×
             </button>
           </div>
+        )}
+        {demoResetHours !== null && (
+          <p className="demo-banner" role="note">
+            <strong>Live demo.</strong> This sample wardrobe is shared with
+            every visitor and resets{' '}
+            {demoResetHours === 24 ? 'daily' : `every ${demoResetHours} hours`}.
+            Add, edit, or delete anything you like.
+          </p>
         )}
         <section id="dashboard" className="welcome-strip">
           <div>
