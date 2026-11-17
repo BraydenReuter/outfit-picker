@@ -4,6 +4,8 @@ A digital closet for the clothes you already own. Upload a top or bottom, remove
 
 **Live demo:** _add your Render URL here after deploying_. The demo wardrobe is shared by every visitor and resets to sample clothes once a day.
 
+**Stack:** React, TypeScript, Vite, Express, Prisma, PostgreSQL, ONNX Runtime Web · deployed on Render + Neon · built with AI-assisted development ([how](#how-this-was-built)).
+
 ![Closet](Outfit-Picker/docs/screenshots/closet.jpg)
 
 ## What works
@@ -143,9 +145,17 @@ See [validation notes](Outfit-Picker/docs/VALIDATION.md) for what was checked an
 
 These screenshots were taken with the earlier server-side BiRefNet version. Photo credits: [Mediamodifier — white tee](https://unsplash.com/photos/white-crew-neck-t-shirt-hanged-on-black-clothes-hanger-TvL5vIgwiwo) and [Dylan Ferreira — jeans](https://unsplash.com/photos/blue-textile-on-brown-wooden-table-cOmWMVeLLzA), from Unsplash.
 
-## History
+## How this was built
 
-The first version ran background removal on the server with [BiRefNet](https://huggingface.co/ZhengPeng7/BiRefNet) in a FastAPI + PyTorch service, with SQLite and photos on local disk. That needed several GB of RAM, which free hosting can't provide, so removal moved into the browser and storage moved to Postgres. The Python service is still in this repository's git history.
+I used AI coding assistants (including Claude) throughout this project to move faster, the same way I'd use any tool that multiplies output. My role was to decide what the app should do, choose the architecture, make the trade-off calls, and review and test what got built before shipping it.
+
+The biggest example of that was getting it online. The first version ran background removal on the server with [BiRefNet](https://huggingface.co/ZhengPeng7/BiRefNet) in a FastAPI + PyTorch service, with SQLite and photos on local disk. It worked well on my machine but needed several GB of RAM, which no free host provides. Working with an AI assistant, I weighed the options (paid VPS vs. redesign) and chose to:
+
+- **Move background removal into the browser**, trading a little segmentation quality for zero server ML cost and keeping photos on the user's device.
+- **Store photos in Postgres** instead of a separate object store, so the whole app needs one free database.
+- **Ship it as a public demo** rather than putting it behind a login, so anyone can try it. That meant adding a daily reset, storage caps, and rate limits to keep a shared database safe.
+
+The redesign was checked with the automated test suite (37 backend tests) and an end-to-end browser run before it shipped; see the [validation notes](Outfit-Picker/docs/VALIDATION.md). The original Python service is still in the git history.
 
 ## License note
 
