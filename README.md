@@ -2,7 +2,7 @@
 
 A digital closet for the clothes you already own. Upload a top or bottom, remove its photo background right in the browser, keep track of its details, and put together outfits you can save for later.
 
-**Live demo:** _add your Render URL here after deploying_. The demo wardrobe is shared by every visitor and resets to sample clothes once a day.
+**Live demo:** [outfit-picker-fomc.onrender.com](https://outfit-picker-fomc.onrender.com/). The demo wardrobe is shared by every visitor and resets to sample clothes once a day.
 
 **Stack:** React, TypeScript, Vite, Express, Prisma, PostgreSQL, ONNX Runtime Web · deployed on Render + Neon · built with AI-assisted development ([how](#how-this-was-built)).
 
